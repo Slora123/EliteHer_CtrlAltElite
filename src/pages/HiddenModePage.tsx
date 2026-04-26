@@ -100,7 +100,9 @@ export function HiddenModePage() {
         <CardTitle className="flex items-center gap-2">
           Test gestures <Hand className="h-4 w-4 text-zinc-300" />
         </CardTitle>
-        <CardDescription>UI test only (does not trigger real emergency calls).</CardDescription>
+        <CardDescription>
+          These gestures are now wired globally. This button remains a simulation preview.
+        </CardDescription>
         {status ? <div className="text-sm text-zinc-200">{status}</div> : null}
         <Button
           variant="secondary"

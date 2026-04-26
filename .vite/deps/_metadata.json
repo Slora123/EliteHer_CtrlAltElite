@@ -1,0 +1,126 @@
+{
+  "hash": "59ba4fb1",
+  "configHash": "9593bb12",
+  "lockfileHash": "e3b0c442",
+  "browserHash": "6fb44a65",
+  "optimized": {
+    "@capacitor/camera": {
+      "src": "../../node_modules/@capacitor/camera/dist/esm/index.js",
+      "file": "@capacitor_camera.js",
+      "fileHash": "3418d14d",
+      "needsInterop": false
+    },
+    "@capacitor/geolocation": {
+      "src": "../../node_modules/@capacitor/geolocation/dist/esm/index.js",
+      "file": "@capacitor_geolocation.js",
+      "fileHash": "99cd4b65",
+      "needsInterop": false
+    },
+    "@capacitor/haptics": {
+      "src": "../../node_modules/@capacitor/haptics/dist/esm/index.js",
+      "file": "@capacitor_haptics.js",
+      "fileHash": "cf6dc834",
+      "needsInterop": false
+    },
+    "@supabase/supabase-js": {
+      "src": "../../node_modules/@supabase/supabase-js/dist/index.mjs",
+      "file": "@supabase_supabase-js.js",
+      "fileHash": "3f53a0c8",
+      "needsInterop": false
+    },
+    "clsx": {
+      "src": "../../node_modules/clsx/dist/clsx.mjs",
+      "file": "clsx.js",
+      "fileHash": "8d0df761",
+      "needsInterop": false
+    },
+    "i18next-browser-languagedetector": {
+      "src": "../../node_modules/i18next-browser-languagedetector/dist/esm/i18nextBrowserLanguageDetector.js",
+      "file": "i18next-browser-languagedetector.js",
+      "fileHash": "cae1a027",
+      "needsInterop": false
+    },
+    "i18next": {
+      "src": "../../node_modules/i18next/dist/esm/i18next.js",
+      "file": "i18next.js",
+      "fileHash": "c4c8dc53",
+      "needsInterop": false
+    },
+    "localforage": {
+      "src": "../../node_modules/localforage/dist/localforage.js",
+      "file": "localforage.js",
+      "fileHash": "c4823e8b",
+      "needsInterop": true
+    },
+    "lucide-react": {
+      "src": "../../node_modules/lucide-react/dist/esm/lucide-react.mjs",
+      "file": "lucide-react.js",
+      "fileHash": "4f4707bc",
+      "needsInterop": false
+    },
+    "maplibre-gl": {
+      "src": "../../node_modules/maplibre-gl/dist/maplibre-gl.js",
+      "file": "maplibre-gl.js",
+      "fileHash": "514bf4e4",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "b0b83cd0",
+      "needsInterop": true
+    },
+    "react-i18next": {
+      "src": "../../node_modules/react-i18next/dist/es/index.js",
+      "file": "react-i18next.js",
+      "fileHash": "4a022776",
+      "needsInterop": false
+    },
+    "react-router-dom": {
+      "src": "../../node_modules/react-router-dom/dist/index.mjs",
+      "file": "react-router-dom.js",
+      "fileHash": "551100a4",
+      "needsInterop": false
+    },
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "c248cab2",
+      "needsInterop": true
+    },
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "b909a16d",
+      "needsInterop": true
+    },
+    "tailwind-merge": {
+      "src": "../../node_modules/tailwind-merge/dist/bundle-mjs.mjs",
+      "file": "tailwind-merge.js",
+      "fileHash": "3976a6fd",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-C-Qwzh9l": {
+      "file": "chunk-C-Qwzh9l.js",
+      "isDynamicEntry": false
+    },
+    "dist-BSPKxkRt": {
+      "file": "dist-BSPKxkRt.js",
+      "isDynamicEntry": false
+    },
+    "react-dom-BiYNbgOa": {
+      "file": "react-dom-BiYNbgOa.js",
+      "isDynamicEntry": false
+    },
+    "web-C5kBrDKa": {
+      "file": "web-C5kBrDKa.js",
+      "isDynamicEntry": true
+    },
+    "web-DNsngMrw": {
+      "file": "web-DNsngMrw.js",
+      "isDynamicEntry": true
+    }
+  }
+}

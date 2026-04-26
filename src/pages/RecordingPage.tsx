@@ -91,7 +91,19 @@ export function RecordingPage() {
       const path = `users/${session.user.id}/recordings/${Date.now()}.${ext}`
 
       if (!navigator.onLine) {
-        await enqueue('evidence_upload', { path, mime, sos_event_id: sosId, incident_id: incidentId })
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader()
+          r.onload = () => resolve(String(r.result ?? ''))
+          r.onerror = () => reject(new Error('Failed to prepare offline recording payload.'))
+          r.readAsDataURL(blob)
+        })
+        await enqueue('evidence_upload', {
+          path,
+          mime,
+          dataUrl,
+          sos_event_id: sosId,
+          incident_id: incidentId,
+        })
         setStatus('Queued upload (offline). See Offline Queue.')
         return
       }

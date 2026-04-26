@@ -18,6 +18,19 @@ export type QueueItem = {
 
 const store = localforage.createInstance({ name: 'saaya', storeName: 'offlineQueue' })
 
+function dataUrlToBlob(dataUrl: string) {
+  const [meta, base64] = dataUrl.split(',')
+  if (!meta || !base64) throw new Error('Invalid queued evidence payload.')
+  const mimeMatch = meta.match(/data:(.*?);base64/)
+  const mime = mimeMatch?.[1] ?? 'application/octet-stream'
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return new Blob([bytes], { type: mime })
+}
+
 function uid() {
   return `q_${Math.random().toString(16).slice(2)}_${Date.now()}`
 }
@@ -58,9 +71,31 @@ export async function retryQueueItem(item: QueueItem) {
     } else if (item.type === 'sos_event') {
       const { error } = await supabase.from('sos_events').insert(item.payload)
       if (error) throw error
+    } else if (item.type === 'evidence_upload') {
+      const payload = item.payload ?? {}
+      const path = payload.path as string | undefined
+      const mime = payload.mime as string | undefined
+      const dataUrl = payload.dataUrl as string | undefined
+      if (!path || !mime || !dataUrl) {
+        throw new Error('Queued evidence is missing required fields.')
+      }
+
+      const blob = dataUrlToBlob(dataUrl)
+      const up = await supabase.storage.from('evidence').upload(path, blob, {
+        contentType: mime,
+        upsert: true,
+      })
+      if (up.error) throw up.error
+
+      const { error } = await supabase.from('evidence_files').insert({
+        sos_event_id: payload.sos_event_id ?? null,
+        incident_id: payload.incident_id ?? null,
+        path,
+        mime,
+      })
+      if (error) throw error
     } else {
-      // evidence_upload, witness_broadcast: UI-first placeholders
-      // Keep queued until backend wiring is added.
+      // witness_broadcast remains a backend-pluggable placeholder.
       throw new Error('This item type is not yet synced automatically.')
     }
 

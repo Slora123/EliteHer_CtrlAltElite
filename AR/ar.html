@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Saaya AR Navigation</title>
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/build/ar-threex-location-only.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        }
+        .arjs-loader {
+            height: 100%; width: 100%; position: absolute; top: 0; left: 0;
+            background-color: rgba(0, 0, 0, 0.8); z-index: 9999;
+            display: flex; justify-content: center; align-items: center; color: white;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .overlay {
+            position: fixed;
+            left: 12px;
+            right: 12px;
+            bottom: 12px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+        }
+        .card {
+            background: rgba(17, 20, 28, 0.9);
+            color: #f5f7ff;
+            border: 1px solid rgba(130, 147, 255, 0.35);
+            border-radius: 12px;
+            padding: 10px 12px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+            pointer-events: auto;
+        }
+        .status {
+            font-size: 14px;
+            line-height: 1.3;
+        }
+        .safe-list {
+            max-height: 34vh;
+            overflow: auto;
+        }
+        .safe-item {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 13px;
+        }
+        .safe-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        .safe-meta {
+            opacity: 0.85;
+            font-size: 12px;
+        }
+        .safe-item a {
+            color: #7db2ff;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .safe-item a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="arjs-loader" id="loader">
+        <div id="loader-text">Loading Saaya AR Experience...</div>
+    </div>
+    <a-scene 
+        vr-mode-ui="enabled: false" 
+        arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false" 
+        renderer="antialias: true; alpha: true"
+    >
+        <a-camera gps-new-camera="gpsMinDistance: 2"></a-camera>
+
+        <a-assets>
+            <a-asset-item id="pointer-model" src="pointer.glb"></a-asset-item>
+        </a-assets>
+
+        <a-entity id="ar-points"></a-entity>
+    </a-scene>
+    <div class="overlay">
+        <div class="card status" id="status">Initializing...</div>
+        <div class="card safe-list" id="safe-list"></div>
+    </div>
+
+    <script>
+        window.addEventListener('load', () => {
+            const loader = document.getElementById('loader');
+            const loaderText = document.getElementById('loader-text');
+            const scene = document.querySelector('a-scene');
+            const pointsContainer = document.getElementById('ar-points');
+            const status = document.getElementById('status');
+            const safeList = document.getElementById('safe-list');
+            const overpassUrl = 'https://overpass-api.de/api/interpreter';
+            const searchRadiusMeters = 2500;
+            const maxPlaces = 12;
+
+            const updateStatus = (text) => {
+                status.textContent = text;
+                loaderText.textContent = text;
+            };
+
+            const normalizePlace = (el) => {
+                const tags = el.tags || {};
+                const lat = Number(el.lat);
+                const lng = Number(el.lon);
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+                const name = tags.name || tags['name:en'] || 'Safe place';
+                const type =
+                    tags.amenity ||
+                    tags.healthcare ||
+                    tags.shop ||
+                    tags.tourism ||
+                    tags.leisure ||
+                    tags.office ||
+                    'landmark';
+                return { name, type, lat, lng };
+            };
+
+            const distanceMeters = (aLat, aLng, bLat, bLng) => {
+                const toRad = (deg) => (deg * Math.PI) / 180;
+                const r = 6371000;
+                const dLat = toRad(bLat - aLat);
+                const dLng = toRad(bLng - aLng);
+                const x =
+                    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(toRad(aLat)) *
+                        Math.cos(toRad(bLat)) *
+                        Math.sin(dLng / 2) *
+                        Math.sin(dLng / 2);
+                const c = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+                return r * c;
+            };
+
+            const clearMarkers = () => {
+                pointsContainer.innerHTML = '';
+            };
+
+            const addArMarker = (lat, lng) => {
+                const entity = document.createElement('a-entity');
+                entity.setAttribute('gltf-model', '#pointer-model');
+                entity.setAttribute('gps-new-entity-place', `latitude: ${lat}; longitude: ${lng}`);
+                entity.setAttribute('scale', '12 12 12');
+                entity.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear');
+                pointsContainer.appendChild(entity);
+            };
+
+            const renderSafePlaces = (userLat, userLng, places) => {
+                safeList.innerHTML = '';
+                if (!places.length) {
+                    safeList.innerHTML = '<div class="safe-item"><span>No nearby safe places found.</span></div>';
+                    return;
+                }
+
+                places.forEach((place) => {
+                    const row = document.createElement('div');
+                    row.className = 'safe-item';
+                    const meters = Math.round(distanceMeters(userLat, userLng, place.lat, place.lng));
+                    const mapsLink = `https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lng}#map=18/${place.lat}/${place.lng}`;
+                    row.innerHTML = `
+                        <div>
+                            <div>${place.name}</div>
+                            <div class="safe-meta">${place.type} • ${meters}m away</div>
+                        </div>
+                        <a href="${mapsLink}" target="_blank" rel="noopener noreferrer">Open OSM</a>
+                    `;
+                    safeList.appendChild(row);
+                    addArMarker(place.lat, place.lng);
+                });
+            };
+
+            const fetchSafePlacesNearby = async (lat, lng) => {
+                const query = `
+                    [out:json][timeout:20];
+                    (
+                      node(around:${searchRadiusMeters},${lat},${lng})[amenity~"hospital|clinic|police|pharmacy|fire_station|community_centre|shelter"];
+                      node(around:${searchRadiusMeters},${lat},${lng})[shop="chemist"];
+                      node(around:${searchRadiusMeters},${lat},${lng})[tourism="information"];
+                    );
+                    out center;
+                `;
+
+                const response = await fetch(overpassUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+                    body: query.trim()
+                });
+                if (!response.ok) {
+                    throw new Error(`Overpass error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const places = (data.elements || [])
+                    .map(normalizePlace)
+                    .filter(Boolean)
+                    .sort((a, b) => distanceMeters(lat, lng, a.lat, a.lng) - distanceMeters(lat, lng, b.lat, b.lng))
+                    .slice(0, maxPlaces);
+
+                return places;
+            };
+
+            // Parse points from URL: ?points=lat,lng;lat,lng
+            const urlParams = new URLSearchParams(window.location.search);
+            const pointsStr = urlParams.get('points');
+
+            if (pointsStr) {
+                clearMarkers();
+                const points = pointsStr.split(';').map(p => p.split(',').map(Number));
+                let count = 0;
+                points.forEach(([lat, lng]) => {
+                    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+                    count += 1;
+                    addArMarker(lat, lng);
+                });
+                safeList.innerHTML = `<div class="safe-item"><span>Showing ${count} AR point(s) from URL.</span></div>`;
+                updateStatus('Showing provided AR route points.');
+            }
+
+            const loadNearbySafePlaces = () => {
+                if (!navigator.geolocation) {
+                    updateStatus('Location is not supported on this browser.');
+                    return;
+                }
+
+                updateStatus('Requesting your location for nearby safe places...');
+                navigator.geolocation.getCurrentPosition(
+                    async (position) => {
+                        try {
+                            if (pointsStr) return;
+
+                            const { latitude, longitude } = position.coords;
+                            updateStatus('Fetching nearby safe places from OpenStreetMap...');
+                            clearMarkers();
+                            const places = await fetchSafePlacesNearby(latitude, longitude);
+                            renderSafePlaces(latitude, longitude, places);
+                            updateStatus(`Found ${places.length} nearby safe place(s). Move phone to view AR pointers.`);
+                        } catch (err) {
+                            console.error(err);
+                            updateStatus('Could not fetch safe places from OpenStreetMap.');
+                            safeList.innerHTML = '<div class="safe-item"><span>Try again in a moment.</span></div>';
+                        }
+                    },
+                    (err) => {
+                        console.error(err);
+                        updateStatus('Location permission denied. Enable GPS permission and refresh.');
+                        safeList.innerHTML = '<div class="safe-item"><span>Nearby safe places need location access.</span></div>';
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 15000,
+                        maximumAge: 10000
+                    }
+                );
+            };
+
+            scene.addEventListener('arjs-video-loaded', () => {
+                loader.style.display = 'none';
+                loadNearbySafePlaces();
+            });
+        });
+    </script>
+</body>
+</html>
