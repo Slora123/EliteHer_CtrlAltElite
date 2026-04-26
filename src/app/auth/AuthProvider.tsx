@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js'
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { assertEnv } from '../../lib/env'
+import { getCurrentPosition } from '../../lib/location'
 import { supabase } from '../../lib/supabase'
 
 type AuthCtx = {
@@ -55,6 +56,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sub.subscription.unsubscribe()
     }
   }, [])
+
+  // Presence heartbeat (backend complete): update user_presence periodically.
+  useEffect(() => {
+    if (!session) return
+    let cancelled = false
+
+    const beat = async () => {
+      try {
+        let lat: number | undefined
+        let lng: number | undefined
+        try {
+          const p = await getCurrentPosition()
+          lat = p.coords.latitude
+          lng = p.coords.longitude
+        } catch {
+          // location optional
+        }
+        await supabase.functions.invoke('presence-heartbeat', { body: { lat, lng } })
+      } catch {
+        // ignore if function not deployed yet
+      }
+    }
+
+    void beat()
+    const t = window.setInterval(() => {
+      if (cancelled) return
+      void beat()
+    }, 3 * 60 * 1000) // every 3 minutes
+
+    return () => {
+      cancelled = true
+      window.clearInterval(t)
+    }
+  }, [session])
 
   const value = useMemo<AuthCtx>(
     () => ({

@@ -1,10 +1,27 @@
-import { ArrowLeft, BadgeCheck, Users } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ArrowLeft, BadgeCheck, LocateFixed, Users } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { Card, CardDescription, CardTitle } from '../components/ui/Card'
 import { Switch } from '../components/ui/Switch'
+import { useAuth } from '../app/auth/AuthProvider'
+import { getCurrentPosition } from '../lib/location'
 import { getPref, setPref } from '../lib/prefs'
+import { supabase } from '../lib/supabase'
+import { formatRelative } from '../lib/utils'
+
+type Presence = {
+  user_id: string
+  last_seen: string
+}
+
+type WitnessRequest = {
+  id: string
+  user_id: string
+  message: string | null
+  status: string
+  created_at: string
+}
 
 type Prefs = {
   enableDigitalWitnesses: boolean
@@ -19,17 +36,52 @@ const DEFAULTS: Prefs = {
 }
 
 export function WitnessesPage() {
+  const { session } = useAuth()
   const [p, setP] = useState<Prefs>(DEFAULTS)
   const [status, setStatus] = useState<string | null>(null)
+  const [helpers, setHelpers] = useState<Presence[]>([])
+  const [requests, setRequests] = useState<WitnessRequest[]>([])
+  const [busy, setBusy] = useState(false)
+  const myId = session?.user.id
 
   useEffect(() => {
     ;(async () => setP(await getPref('witnesses', DEFAULTS)))()
   }, [])
 
+  async function refresh() {
+    if (!session) return
+    const { data: pres } = await supabase
+      .from('user_presence')
+      .select('user_id,last_seen')
+      .order('last_seen', { ascending: false })
+      .limit(25)
+    setHelpers(((pres as any) ?? []).filter((x: Presence) => x.user_id !== myId))
+
+    const { data: reqs } = await supabase
+      .from('witness_requests')
+      .select('id,user_id,message,status,created_at')
+      .order('created_at', { ascending: false })
+      .limit(20)
+    setRequests((reqs as any) ?? [])
+  }
+
+  useEffect(() => {
+    if (!session) return
+    refresh()
+    const t = window.setInterval(refresh, 20000)
+    return () => window.clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user.id])
+
   async function save(next: Prefs) {
     setP(next)
     await setPref('witnesses', next)
   }
+
+  const openRequests = useMemo(
+    () => requests.filter((r) => r.status === 'open'),
+    [requests],
+  )
 
   return (
     <div className="space-y-3">
@@ -37,6 +89,29 @@ export function WitnessesPage() {
         <Link to="/sos" className="inline-flex items-center gap-2 text-sm text-zinc-300">
           <ArrowLeft className="h-4 w-4" /> Back
         </Link>
+        <Button
+          variant="secondary"
+          size="sm"
+          leftIcon={<LocateFixed className="h-4 w-4" />}
+          disabled={busy || !session}
+          onClick={async () => {
+            setBusy(true)
+            try {
+              const pos = await getCurrentPosition()
+              await supabase.functions.invoke('presence-heartbeat', {
+                body: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+              })
+              setStatus('Presence updated.')
+              await refresh()
+            } catch (e: any) {
+              setStatus(e?.message ?? 'Failed to update presence')
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          Update
+        </Button>
       </div>
 
       <Card>
@@ -87,9 +162,25 @@ export function WitnessesPage() {
 
       <Card className="space-y-2">
         <CardTitle>Nearby helpers</CardTitle>
-        <CardDescription>UI-only for now (presence + push wiring later).</CardDescription>
-        <div className="mt-2 rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-zinc-400">
-          No helpers visible yet.
+        <CardDescription>Powered by the `user_presence` table (updates every few minutes).</CardDescription>
+        <div className="mt-2 space-y-2">
+          {helpers.length ? (
+            helpers.slice(0, 10).map((h) => (
+              <div
+                key={h.user_id}
+                className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm"
+              >
+                <div className="font-semibold">Helper</div>
+                <div className="mt-1 text-xs text-zinc-400">
+                  last seen {formatRelative(h.last_seen)}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-zinc-400">
+              No helpers visible yet.
+            </div>
+          )}
         </div>
       </Card>
 
@@ -108,10 +199,81 @@ export function WitnessesPage() {
           >
             Request badge
           </Button>
-          <Button onClick={() => setStatus('Simulated: broadcast help request queued.')}>Broadcast help</Button>
+          <Button
+            disabled={busy || !session}
+            onClick={async () => {
+              setBusy(true)
+              setStatus(null)
+              try {
+                const pos = await getCurrentPosition()
+                const { error } = await supabase.from('witness_requests').insert({
+                  message: 'Need nearby help (Saaya).',
+                  lat: pos.coords.latitude,
+                  lng: pos.coords.longitude,
+                  status: 'open',
+                })
+                if (error) throw error
+                setStatus('Broadcasted help request.')
+                await refresh()
+              } catch (e: any) {
+                setStatus(e?.message ?? 'Failed to broadcast')
+              } finally {
+                setBusy(false)
+              }
+            }}
+          >
+            Broadcast help
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="space-y-2">
+        <CardTitle>Open help requests</CardTitle>
+        <CardDescription>Backed by `witness_requests` + `witness_responses`.</CardDescription>
+        <div className="mt-2 space-y-2">
+          {openRequests.length ? (
+            openRequests.map((r) => (
+              <div
+                key={r.id}
+                className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold">Request</div>
+                    <div className="mt-1 text-xs text-zinc-400">
+                      {formatRelative(r.created_at)} • {r.message ?? '—'}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={busy || !session || r.user_id === myId}
+                    onClick={async () => {
+                      setBusy(true)
+                      try {
+                        const { error } = await supabase.from('witness_responses').insert({
+                          request_id: r.id,
+                          status: 'offered',
+                        })
+                        if (error) throw error
+                        setStatus('You offered help (saved).')
+                      } catch (e: any) {
+                        setStatus(e?.message ?? 'Failed to respond')
+                      } finally {
+                        setBusy(false)
+                      }
+                    }}
+                  >
+                    Offer help
+                  </Button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-sm text-zinc-400">No open requests right now.</div>
+          )}
         </div>
       </Card>
     </div>
   )
 }
-

@@ -64,9 +64,25 @@ Deno.serve(async (req) => {
   if (!sos_event_id) return json({ error: 'Missing sos_event_id' }, 400)
 
   const url = Deno.env.get('SUPABASE_URL')
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  if (!url || !serviceRoleKey) return json({ error: 'Supabase env missing' }, 500)
+  if (!url || !anonKey || !serviceRoleKey) return json({ error: 'Supabase env missing' }, 500)
 
+  // Authenticate caller (anonymous sign-in counts as authenticated) and ensure ownership via RLS.
+  const authHeader = req.headers.get('Authorization') ?? ''
+  const userClient = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } })
+  const { data: userData } = await userClient.auth.getUser()
+  if (!userData.user) return json({ error: 'Unauthorized' }, 401)
+
+  // Read the SOS event through RLS (must be owned by caller).
+  const { data: ownedSos, error: ownedErr } = await userClient
+    .from('sos_events')
+    .select('id,user_id,level,status,created_at')
+    .eq('id', sos_event_id)
+    .single()
+  if (ownedErr || !ownedSos) return json({ error: 'SOS event not found' }, 404)
+
+  // Service role client for integrations and audit writes.
   const supabase = createClient(url, serviceRoleKey)
 
   const { data: sos, error: sosErr } = await supabase
@@ -110,4 +126,3 @@ Deno.serve(async (req) => {
 
   return json({ ok: true, level: sos.level, smsResults, pushResults })
 })
-

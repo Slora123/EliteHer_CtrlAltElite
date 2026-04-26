@@ -126,6 +126,100 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['evidence_files']['Insert']>
         Relationships: []
       }
+      devices: {
+        Row: {
+          id: string
+          user_id: string
+          platform: string
+          push_token: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string
+          platform?: string
+          push_token?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['devices']['Insert']>
+        Relationships: []
+      }
+      sos_actions: {
+        Row: {
+          id: string
+          sos_event_id: string
+          action: string
+          meta: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          sos_event_id: string
+          action: string
+          meta?: Json
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['sos_actions']['Insert']>
+        Relationships: []
+      }
+      witness_requests: {
+        Row: {
+          id: string
+          user_id: string
+          sos_event_id: string | null
+          message: string | null
+          lat: number | null
+          lng: number | null
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string
+          sos_event_id?: string | null
+          message?: string | null
+          lat?: number | null
+          lng?: number | null
+          status?: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['witness_requests']['Insert']>
+        Relationships: []
+      }
+      witness_responses: {
+        Row: {
+          id: string
+          request_id: string
+          helper_user_id: string
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          request_id: string
+          helper_user_id?: string
+          status?: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['witness_responses']['Insert']>
+        Relationships: []
+      }
+      user_presence: {
+        Row: {
+          user_id: string
+          lat: number | null
+          lng: number | null
+          last_seen: string
+        }
+        Insert: {
+          user_id?: string
+          lat?: number | null
+          lng?: number | null
+          last_seen?: string
+        }
+        Update: Partial<Database['public']['Tables']['user_presence']['Insert']>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>

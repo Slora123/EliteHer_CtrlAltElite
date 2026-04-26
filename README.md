@@ -31,6 +31,19 @@ supabase secrets set TWILIO_ACCOUNT_SID=... TWILIO_AUTH_TOKEN=... TWILIO_FROM=..
 supabase secrets set FCM_SERVER_KEY=...
 ```
 
+Deploy functions:
+```bash
+supabase functions deploy presence-heartbeat
+supabase functions deploy sos-escalate
+supabase functions deploy send-sms
+supabase functions deploy send-push
+```
+
+What these functions do:
+- `presence-heartbeat`: updates `user_presence` (for nearby helpers)
+- `sos-escalate`: writes `sos_actions` + triggers SMS/push on level ≥ 2
+- `send-sms` / `send-push`: low-level provider wrappers (optional)
+
 ## 2) Map setup (MapTiler Cloud)
 1. Create a MapTiler Cloud API key.
 2. (Optional) Set `VITE_MAPTILER_MAP_ID` (defaults to `streets-v4`).

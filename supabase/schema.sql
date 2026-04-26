@@ -122,6 +122,22 @@ create table if not exists public.witness_responses (
 );
 create index if not exists witness_responses_req_idx on public.witness_responses (request_id, created_at desc);
 
+-- User presence (for nearby helpers / community alerts)
+create table if not exists public.user_presence (
+  user_id uuid primary key default auth.uid() references auth.users(id) on delete cascade,
+  lat double precision,
+  lng double precision,
+  geog geography(point, 4326) generated always as (
+    case
+      when lat is null or lng is null then null
+      else st_setsrid(st_makepoint(lng, lat), 4326)::geography
+    end
+  ) stored,
+  last_seen timestamptz not null default now()
+);
+create index if not exists user_presence_geog_gist on public.user_presence using gist (geog);
+create index if not exists user_presence_last_seen_idx on public.user_presence (last_seen desc);
+
 -- ===== RLS =====
 alter table public.contacts enable row level security;
 alter table public.incidents enable row level security;
@@ -132,6 +148,7 @@ alter table public.devices enable row level security;
 alter table public.sos_actions enable row level security;
 alter table public.witness_requests enable row level security;
 alter table public.witness_responses enable row level security;
+alter table public.user_presence enable row level security;
 
 -- Contacts: owner only
 drop policy if exists "contacts_select_own" on public.contacts;
@@ -253,6 +270,26 @@ create policy "witness_responses_write"
 on public.witness_responses for insert
 to authenticated
 with check (helper_user_id = auth.uid());
+
+-- Presence: user can upsert own; anyone authenticated can read recent presence (for nearby helper UI)
+drop policy if exists "presence_read" on public.user_presence;
+create policy "presence_read"
+on public.user_presence for select
+to authenticated
+using (last_seen > now() - interval '30 minutes');
+
+drop policy if exists "presence_write_own" on public.user_presence;
+create policy "presence_write_own"
+on public.user_presence for insert
+to authenticated
+with check (user_id = auth.uid());
+
+drop policy if exists "presence_update_own" on public.user_presence;
+create policy "presence_update_own"
+on public.user_presence for update
+to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
 
 -- ===== Storage bucket + policies =====
 -- Create bucket "evidence" (public = false).

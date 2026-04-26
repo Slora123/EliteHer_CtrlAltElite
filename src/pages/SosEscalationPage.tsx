@@ -65,11 +65,19 @@ export function SosEscalationPage() {
   async function start() {
     setBusy(true)
     try {
-      await ensureEvent()
+      const id = await ensureEvent()
       setLevel(1)
       setSecondsLeft(25)
       setStatus('running')
       pushLog('Escalation started (Level 1).')
+      if (id) {
+        try {
+          await supabase.functions.invoke('sos-escalate', { body: { sos_event_id: id } })
+          pushLog('Backend: sos-escalate invoked.')
+        } catch {
+          pushLog('Backend: sos-escalate not available (deploy functions + set secrets).')
+        }
+      }
     } finally {
       setBusy(false)
     }
@@ -85,6 +93,13 @@ export function SosEscalationPage() {
       pushLog(`Auto-escalated to Level ${next}.`)
       if (eventId) {
         await supabase.from('sos_events').update({ level: next, status: 'triggered' }).eq('id', eventId)
+        // Backend: call Edge Function to perform escalation actions (SMS/push + audit log).
+        try {
+          await supabase.functions.invoke('sos-escalate', { body: { sos_event_id: eventId } })
+          pushLog('Backend: sos-escalate invoked.')
+        } catch {
+          pushLog('Backend: sos-escalate not available (deploy functions + set secrets).')
+        }
       }
       if (next === 3) {
         setStatus('running')
@@ -231,4 +246,3 @@ export function SosEscalationPage() {
     </div>
   )
 }
-
